@@ -18,14 +18,16 @@ class Trainer(object):
         self.loss_history = []
         self.val_loss_history = []
         self.device = device
-        self.loss = torch.nn.CrossEntropyLoss(reduction = "sum")
+        self.ce = torch.nn.CrossEntropyLoss(ignore_index = self.model._null)
         self.optim = torch.optim.Adam(self.model.parameters(), self.learning_rate)
 
     def loss(self, predictions, labels):
         #TODO - Compute cross entropy loss between predictions and labels. 
         #Make sure to compute this loss only for indices where label is not the null token.
         #The loss should be averaged over batch and sequence dimensions. 
-        loss = self.loss(predictions.transpose(1,2),labels, ignore_index = self.model._null)
+        # print()
+        # print(labels.shape())
+        loss = self.ce(predictions.transpose(1,2),labels)
         return loss
     
     def val(self):
