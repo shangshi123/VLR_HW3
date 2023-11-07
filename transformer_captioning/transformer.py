@@ -41,11 +41,11 @@ class AttentionLayer(nn.Module):
             # convert att_mask which is multiplicative, to an additive mask
             # Hint : If mask[i,j] = 0, we want softmax(QKT[i,j] + additive_mask[i,j]) to be 0
             # Think about what inputs make softmax 0.
-            additive_mask = torch.where(attn_mask == 0, float("-inf"), 0)
-            dot_product += additive_mask
+            additive_mask =  (1 - attn_mask)*(-1e9)
+            dot_product += additive_mask.to(query.device)
         
         # apply softmax, dropout, and use value
-        y = self.softmax(dot_product / torch.sqrt(self.embed_dim), dim = 2)
+        y = self.softmax(dot_product / self.embed_dim**0.5, dim = -1)
         y = self.dropout(y)
         y = self.bmm(y,value)
         return y  
@@ -71,9 +71,9 @@ class MultiHeadAttentionLayer(AttentionLayer):
         #project query, key and value
         #after projection, split the embedding across num_heads
         #eg - expected shape for value is (N, H, T, D/H)
-        query = self.query_proj(query).view(N,S,H,D//H).permute(0,2,1,3) #(N, H, S, D/H)
-        key = self.key_proj(key).view(N,T,H,D//H).permute(0,2,1,3) #(N, H, T, D/H)
-        value = self.value_proj(value).view(N,T,H,D//H).permute(0,2,1,3) #(N, H, T, D/H)
+        query = self.query_proj(query).reshape(N,S,H,D//H).permute(0,2,1,3) #(N, H, S, D/H)
+        key = self.key_proj(key).reshape(N,T,H,D//H).permute(0,2,1,3) #(N, H, T, D/H)
+        value = self.value_proj(value).reshape(N,T,H,D//H).permute(0,2,1,3) #(N, H, T, D/H)
 
         #compute dot-product attention separately for each head. Don't forget the scaling value!
         #Expected shape of dot_product is (N, H, S, T)
@@ -83,14 +83,15 @@ class MultiHeadAttentionLayer(AttentionLayer):
             # convert att_mask which is multiplicative, to an additive mask
             # Hint : If mask[i,j] = 0, we want softmax(QKT[i,j] + additive_mask[i,j]) to be 0
             # Think about what inputs make softmax 0.
-            additive_mask = torch.where(attn_mask == 0, float("-inf"),0)
-            dot_product += additive_mask
+            # additive_mask = torch.where(attn_mask == 0, float("-inf"),0).to(query.device)
+            additive_mask = (1 - attn_mask)*(-1e9)
+            dot_product += additive_mask.to(query.device)
         
         # apply softmax, dropout, and use value
-        y = dot_product / torch.sqrt(self.embed_dim/H)
+        y = dot_product / ((self.embed_dim/H)**0.5)
         y = self.dropout(F.softmax(dot_product,dim = -1)) #(N,H,S,D/H)
         y = torch.matmul(y,value)
-        y = y.permute(0,2,1,3).view(N,S,D)
+        y = y.permute(0,2,1,3).reshape(N,S,D)
         # concat embeddings from different heads, and project
         output = self.head_proj(y)
         return output
@@ -154,7 +155,7 @@ class FeedForwardBlock(nn.Module):
         # MLP has the following layers : linear, relu, dropout, linear ; hidden dim of linear is given by dim_feedforward
         self.mlp = nn.Sequential(
             nn.Linear(input_dim,dim_feedforward),
-            nn.ReLu(),
+            nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(dim_feedforward,input_dim)
         )

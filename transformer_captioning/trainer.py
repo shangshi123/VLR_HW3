@@ -28,6 +28,11 @@ class Trainer(object):
         # print()
         # print(labels.shape())
         loss = self.ce(predictions.transpose(1,2),labels)
+
+        # preds = predictions.view(-1, predictions.shape[-1])
+        # labels = labels.flatten()
+        # ce_loss = torch.nn.CrossEntropyLoss(ignore_index=self.model._null)
+        # loss = ce_loss(preds, labels)
         return loss
     
     def val(self):
