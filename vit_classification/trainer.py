@@ -21,6 +21,7 @@ class Trainer:
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optim, T_0=10, T_mult=1, eta_min=1e-6)
         self.test_accuracy_history = [[], []]
         self.train_accuracy_history = [[], []]
+        self.loss = torch.nn.CrossEntropyLoss()
 
     def eval(self, dataloader):
         total_datapoints = 0
@@ -49,7 +50,7 @@ class Trainer:
 
         
         # TODO - Compute cross entropy loss between predictions and labels. 
-        loss = None
+        loss = self.loss(predictions, labels)
         
 
         return loss
