@@ -35,7 +35,7 @@ class AttentionLayer(nn.Module):
         key = key.permute(0,2,1)
         #compute dot-product attention. Don't forget the scaling value!
         #Expected shape of dot_product is (N, S, T)
-        dot_product = torch.bmm(query,key)
+        dot_product = torch.bmm(query,key)/ self.embed_dim**0.5
 
         if attn_mask is not None:
             # convert att_mask which is multiplicative, to an additive mask
@@ -45,7 +45,7 @@ class AttentionLayer(nn.Module):
             dot_product += additive_mask.to(query.device)
         
         # apply softmax, dropout, and use value
-        y = self.softmax(dot_product / self.embed_dim**0.5, dim = -1)
+        y = self.softmax(dot_product, dim = -1)
         y = self.dropout(y)
         y = self.bmm(y,value)
         return y  
@@ -71,13 +71,13 @@ class MultiHeadAttentionLayer(AttentionLayer):
         #project query, key and value
         #after projection, split the embedding across num_heads
         #eg - expected shape for value is (N, H, T, D/H)
-        query = self.query_proj(query).reshape(N,S,H,D//H).permute(0,2,1,3) #(N, H, S, D/H)
-        key = self.key_proj(key).reshape(N,T,H,D//H).permute(0,2,1,3) #(N, H, T, D/H)
-        value = self.value_proj(value).reshape(N,T,H,D//H).permute(0,2,1,3) #(N, H, T, D/H)
+        query = self.query_proj(query).reshape(N,S,H,D//H).transpose(1,2) #(N, H, S, D/H)
+        key = self.key_proj(key).reshape(N,T,H,D//H).transpose(1,2) #(N, H, T, D/H)
+        value = self.value_proj(value).reshape(N,T,H,D//H).transpose(1,2) #(N, H, T, D/H)
 
         #compute dot-product attention separately for each head. Don't forget the scaling value!
         #Expected shape of dot_product is (N, H, S, T)
-        dot_product = torch.matmul(query, key.transpose(2,3))
+        dot_product = torch.matmul(query, key.transpose(2,3))/ ((self.embed_dim/H)**0.5)
 
         if attn_mask is not None:
             # convert att_mask which is multiplicative, to an additive mask
@@ -88,10 +88,9 @@ class MultiHeadAttentionLayer(AttentionLayer):
             dot_product += additive_mask.to(query.device)
         
         # apply softmax, dropout, and use value
-        y = dot_product / ((self.embed_dim/H)**0.5)
         y = self.dropout(F.softmax(dot_product,dim = -1)) #(N,H,S,D/H)
         y = torch.matmul(y,value)
-        y = y.permute(0,2,1,3).reshape(N,S,D)
+        y = y.transpose(1,2).reshape(N,S,D)
         # concat embeddings from different heads, and project
         output = self.head_proj(y)
         return output
